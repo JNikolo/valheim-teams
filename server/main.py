@@ -48,12 +48,11 @@ class Chest(BaseModel):
     sector: Sector
     rotation: Rotation
     creator_id: int
+
 class ParseSaveResponse(BaseModel):
     status: str
     total_chests: int
     total_items: int
-    items: list[Item] = []
-    chests: list[Chest] = []
 
 class ErrorResponse(BaseModel):
     status: str
@@ -66,12 +65,49 @@ def read_root():
     return {"Hello": "World"}
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+@app.get("/chests")
+async def get_chests():
+    try:
+        chests = DB.get("chests", [])
+        return {"sucess": True, "chests": chests, "count": len(chests)}
+    except Exception as e:
+        return {"success": False, "error": "Error retrieving chests"}
 
-@app.post("/parse_save/")
-async def parse_save(file: UploadFile = File(...)) -> Union[ParseSaveResponse, ErrorResponse]:
+@app.get("/items/")
+async def get_items():
+    try:
+        items = DB.get("items", [])
+        return {"success": True, "items": items, "count": len(items)}
+    except Exception as e:
+        return {"success": False, "error": "Error retrieving items"}
+
+@app.get("/chest/{chest_id}/items/")
+async def get_items_in_chest(chest_id: int):
+    try:
+        items = DB.get("items", [])
+        chest_items = [item for item in items if item["chest_id"] == chest_id]
+        return {"success": True, "items": chest_items, "count": len(chest_items)}
+    except Exception as e:
+        return {"success": False, "error": "Error retrieving items for chest"}
+
+@app.get("/inventory/summary/")
+async def get_inventory_summary():
+    try:
+        count_chests = len(DB.get("chests", []))
+        items = DB.get("items", [])
+        summary = {}
+        for item in items:
+            if item["name"] in summary:
+                summary[item["name"]] += item["stack"]
+            else:
+                summary[item["name"]] = item["stack"]
+        return {"success": True, "summary": summary, "total_chests": count_chests, "total_items": len(items)}
+    except Exception as e:
+        return {"success": False, "error": "Error retrieving inventory summary"}
+
+@app.post("/parse_and_save/")
+async def parse_and_save(file: UploadFile = File(...)) -> Union[ParseSaveResponse, ErrorResponse]:
+    global DB
     try:
         if file.content_type != "application/octet-stream":
             return ErrorResponse(
@@ -79,14 +115,11 @@ async def parse_save(file: UploadFile = File(...)) -> Union[ParseSaveResponse, E
                 message="Invalid file type. Please upload a Valheim save file."
             )
         
-        if file.filename in DB:
-            saved_data = DB[file.filename]
+        if DB:
             return ParseSaveResponse(
                 status="success",
-                total_chests=saved_data["total_chests"],
-                total_items=saved_data["total_items"],
-                items=saved_data["items"],
-                chests=saved_data["chests"]
+                total_chests=DB["total_chests"],
+                total_items=DB["total_items"]
             )
 
         save_data = vst.to_json(file.file)
@@ -119,7 +152,7 @@ async def parse_save(file: UploadFile = File(...)) -> Union[ParseSaveResponse, E
 
             parsed_items.extend(chest_items)
         
-        DB[file.filename] = {
+        DB = {
             "total_chests": len(parsed_chests),
             "chests": parsed_chests,
             "total_items": len(parsed_items),
@@ -130,8 +163,6 @@ async def parse_save(file: UploadFile = File(...)) -> Union[ParseSaveResponse, E
             status="success", 
             total_chests=len(parsed_chests), 
             total_items=len(parsed_items), 
-            items=parsed_items, 
-            chests=parsed_chests
         )
     except Exception as e:
         return ErrorResponse(status="error", message=str(e))
