@@ -1,5 +1,5 @@
 from typing import Union
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
 from valheim_save_tools_py import ValheimSaveTools, parse_items_from_base64
 
 app = FastAPI()
@@ -22,10 +22,10 @@ def read_root():
 def read_item(item_id: int, q: Union[str, None] = None):
     return {"item_id": item_id, "q": q}
 
-@app.get("/parse_save/")
-def parse_save(file_path: str = ""):
+@app.post("/parse_save/")
+def parse_save(file: UploadFile = File(...)):
     try:
-        save_data = vst.to_json(file_path)
+        save_data = vst.to_json(file.file)
 
         zdoList = save_data.get("zdoList", [])
 
