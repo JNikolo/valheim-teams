@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import Union
+from typing import Union, Optional
+from datetime import datetime
 
 #============================== Schemas ============================== #
 # ************************ Item Schema *************************** #
@@ -44,3 +45,22 @@ class Chest(ChestBase):
     id: int
 
     model_config = {"from_attributes": True}
+
+# ************************ World Schema *************************** #
+class WorldBase(BaseModel):
+    version: int
+    net_time: float
+    modified_time: int
+    name: Optional[str] = None
+
+class WorldCreate(WorldBase):
+    pass
+
+class World(WorldBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+    
+# ============================== End Schemas ============================== #

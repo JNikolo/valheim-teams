@@ -16,6 +16,10 @@ def get_all_chests(db: Session) -> list[models.Chest]:
     """Retrieve all chests."""
     return db.scalars(select(models.Chest)).all()
 
+def get_chests_by_world(db: Session, world_id: int) -> list[models.Chest]:
+    """Retrieve all chests in the specified world."""
+    return db.scalars(select(models.Chest).where(models.Chest.world_id == world_id)).all()
+
 # CREATE OPERATIONS
 def create_chest(db: Session, chest: schemas.ChestCreate) -> models.Chest:
     """Create a new chest in the database."""
@@ -70,3 +74,25 @@ def create_item(db: Session, item: schemas.ItemCreate) -> models.Item:
     db.commit()
     db.refresh(db_item)
     return db_item
+
+#************************** World Operations ***************************#
+# READ OPERATIONS
+def get_world(db: Session, world_id: int) -> models.World | None:
+    """Retrieve a world by its ID."""
+    return db.get(models.World, world_id)
+
+# CREATE OPERATIONS
+def create_world(db: Session, world: schemas.WorldCreate) -> models.World:
+    """Create a new world in the database."""
+    db_world = models.World(
+        version=world.version,
+        net_time=world.net_time,
+        modified_time=world.modified_time,
+        name=world.name,
+    )
+    db.add(db_world)
+    db.commit()
+    db.refresh(db_world)
+    return db_world
+
+#======================== End of CRUD Operations ========================#
