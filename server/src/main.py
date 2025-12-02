@@ -2,8 +2,18 @@ from typing import Union
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from valheim_save_tools_py import ValheimSaveTools, parse_items_from_base64
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
+from src.database import engine
+from src.models import Base
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup code: Initialize the database
+    Base.metadata.create_all(bind=engine)
+    yield
+    # Shutdown code: (if any needed)
+
+app = FastAPI(lifespan=lifespan)
 
 vst = ValheimSaveTools(verbose=True)
 
