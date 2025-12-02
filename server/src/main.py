@@ -1,15 +1,15 @@
-from typing import Union
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from valheim_save_tools_py import ValheimSaveTools, parse_items_from_base64
-from pydantic import BaseModel
 from contextlib import asynccontextmanager
-from src.database import engine
-from src.models import Base
+from src.database import engine, get_db
+from sqlalchemy.orm import Session
+from collections import defaultdict
+from . import schemas, crud, models
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup code: Initialize the database
-    Base.metadata.create_all(bind=engine)
+    models.Base.metadata.create_all(bind=engine)
     yield
     # Shutdown code: (if any needed)
 
@@ -24,100 +24,57 @@ CHEST_PREFABS = {
     "piece_chest_blackmetal",
 }
 
-class Item(BaseModel):
-    name: str
-    stack: int
-    quality: int
-    durability: float
-    pos_x: int
-    pos_y: int
-    equipped: bool
-    variant: int
-    crafter_id: int = 0
-    crafter_name: Union[str, None] = None
-    chest_id: int = 0
-
-class Rotation(BaseModel):
-    x: float
-    y: float
-    z: float
-
-class Position(BaseModel):
-    x: float
-    y: float
-    z: float
-
-class Sector(BaseModel):
-    x: int
-    y: int
-
-class Chest(BaseModel):
-    chest_id: int
-    chest_type: str
-    position: Position
-    sector: Sector
-    rotation: Rotation
-    creator_id: int
-
-DB = {}
 
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
 
-@app.get("/chests")
-async def get_chests():
-    chests = DB.get("chests", [])
+@app.get("/chests", response_model=list[schemas.Chest])
+async def get_chests(db: Session = Depends(get_db)):
+    chests = crud.get_all_chests(db)
     if not chests:
         raise HTTPException(status_code=404, detail="No chests found")
     
-    return {"success": True, "chests": chests, "count": len(chests)}
+    return chests
 
-@app.get("/items/")
-async def get_items():
-    items = DB.get("items", [])
+@app.get("/items/", response_model=list[schemas.Item])
+async def get_items(db: Session = Depends(get_db)):
+    items = crud.get_all_items(db)
     if not items:
         raise HTTPException(status_code=404, detail="No items found")
     
-    return {"success": True, "items": items, "count": len(items)}
+    return items
 
-@app.get("/chest/{chest_id}/items/")
-async def get_items_in_chest(chest_id: int):
-    items = DB.get("items", [])
-    chest_items = [item for item in items if item["chest_id"] == chest_id]
-    if not chest_items:
+@app.get("/chest/{chest_id}/items/", response_model=list[schemas.Item])
+async def get_items_in_chest(chest_id: int, db: Session = Depends(get_db)):
+    items = crud.get_all_items_in_chest(db, chest_id)
+    if not items:
         raise HTTPException(status_code=404, detail="No items found in the specified chest")
     
-    return {"success": True, "items": chest_items, "count": len(chest_items)}
+    return items
 
-@app.get("/inventory/summary/")
-async def get_inventory_summary():
-    count_chests = len(DB.get("chests", []))
-    items = DB.get("items", [])
+@app.get("/inventory/summary/", response_model=dict[str, int])
+async def get_inventory_summary(db: Session = Depends(get_db)):
+    
+    items: list[schemas.Item] = crud.get_all_items(db)
 
-    if count_chests == 0:
-        raise HTTPException(status_code=404, detail="No chests found")
     if not items:
         raise HTTPException(status_code=404, detail="No items found")
     
-    summary = {}
+    summary = defaultdict(int)
     for item in items:
-        if item["name"] in summary:
-            summary[item["name"]] += item["stack"]
-        else:
-            summary[item["name"]] = item["stack"]
+        summary[item.name] += item.quantity
     
     if not summary:
         raise HTTPException(status_code=404, detail="No items found in inventory")
     
-    return {"success": True, "summary": summary, "total_chests": count_chests, "total_items": len(items)}
+    return summary
 
-@app.post("/parse_and_save/")
-async def parse_and_save(file: UploadFile = File(...)):
-    global DB
+@app.post("/parse_and_save/", response_model=dict)
+async def parse_and_save(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if file.content_type != "application/octet-stream":
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a Valheim save file.")
-        
+    
     try:
         save_data = vst.to_json(file.file)
     except Exception as e:
@@ -126,40 +83,64 @@ async def parse_and_save(file: UploadFile = File(...)):
     zdoList = save_data.get("zdoList", [])
 
     found_chests = [zdo for zdo in zdoList if zdo.get("prefabName", "") in CHEST_PREFABS]
-    parsed_items = []
-    parsed_chests = []
+    total_chests = 0
+    total_items = 0
 
-    for chest_id, chest_data in enumerate(found_chests):
-        chest: Chest = {}
-        chest["chest_id"] = chest_id
-        chest["chest_type"] = chest_data.get("prefabName", "")
-        chest["position"] = chest_data.get("position", {})
-        chest["sector"] = chest_data.get("sector", {})
-        chest["rotation"] = chest_data.get("rotation", {})
-        longs= chest_data.get("longsByName", {})
-        chest["creator_id"] = longs.get("creator", "")
+    # Clear existing data (optional - remove these lines if you want to keep old data)
+    db.query(models.Item).delete()
+    db.query(models.Chest).delete()
 
-        parsed_chests.append(chest)
+    for chest_data in found_chests:
+        # Extract chest data
+        position = chest_data.get("position", {})
+        sector = chest_data.get("sector", {})
+        rotation = chest_data.get("rotation", {})
+        longs = chest_data.get("longsByName", {})
 
+        # Create chest schema for validation
+        chest_create = schemas.ChestCreate(
+            prefab_name=chest_data.get("prefabName", ""),
+            creator_id=longs.get("creator", 0),
+            position_x=position.get("x", 0.0),
+            position_y=position.get("y", 0.0),
+            position_z=position.get("z", 0.0),
+            sector_x=sector.get("x", 0),
+            sector_y=sector.get("y", 0),
+            rotation_x=rotation.get("x", 0.0),
+            rotation_y=rotation.get("y", 0.0),
+            rotation_z=rotation.get("z", 0.0),
+        )
 
-        chestStringByName = chest_data.get('stringsByName', {})
-        chestItemsString = chestStringByName.get('items', '')
-        chest_items: list[Item] = parse_items_from_base64(chestItemsString)
+        # Save chest to database
+        db_chest = crud.create_chest(db, chest_create)
+        total_chests += 1
+
+        # Parse items from chest
+        chest_strings = chest_data.get('stringsByName', {})
+        chest_items_string = chest_strings.get('items', '')
+        chest_items = parse_items_from_base64(chest_items_string)
+        print(chest_items)
         
-        for item in chest_items:
-            item["chest_id"] = chest_id
-
-        parsed_items.extend(chest_items)
-    
-    DB = {
-        "total_chests": len(parsed_chests),
-        "chests": parsed_chests,
-        "total_items": len(parsed_items),
-        "items": parsed_items
-    }
+        # Save each item to database
+        for item_data in chest_items:
+            item_create = schemas.ItemCreate(
+                chest_id=db_chest.id,
+                name=item_data.get("name", ""),
+                quantity=item_data.get("stack", 0),
+                durability=item_data.get("durability", 100.0),
+                position_x=item_data.get("pos_x", 0),
+                position_y=item_data.get("pos_y", 0),
+                equipped=item_data.get("equipped", False),
+                variant=item_data.get("variant", 0),
+                crafter_id=item_data.get("crafter_id", 0),
+                crafter_name=item_data.get("crafter_name"),
+                quality=item_data.get("quality", 0)
+            )
+            crud.create_item(db, item_create)
+            total_items += 1
     
     return {
-        "status": True,
-        "total_chests": len(parsed_chests),
-        "total_items": len(parsed_items),
+        "total_chests": total_chests,
+        "total_items": total_items,
+        "message": f"Successfully saved {total_chests} chests and {total_items} items to database"
     }

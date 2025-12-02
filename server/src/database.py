@@ -17,9 +17,6 @@ url = URL.create(
 engine = create_engine(url, echo=Config.DEBUG)  # echo=True for debugging
 Session = sessionmaker(bind=engine)
 
-print("Database engine created with URL:", url)
-print("Debug mode is", "on" if Config.DEBUG else "off")
-print("Db connection pool size:", engine.pool.size())
 def get_db() -> Generator[OrmSession, None, None]:
     with Session() as session:
         yield session
