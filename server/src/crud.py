@@ -91,9 +91,26 @@ def get_world(db: Session, world_id: int) -> models.World | None:
     """Retrieve a world by its ID."""
     return db.get(models.World, world_id)
 
+def get_all_worlds(db: Session) -> list[models.World]:
+    """Retrieve all worlds."""
+    return db.scalars(select(models.World)).all()
+
 def get_world_by_uid(db: Session, uid: int) -> models.World | None:
     """Retrieve a world by its unique identifier (uid)."""
     return db.scalars(select(models.World).where(models.World.uid == uid)).first()
+
+def get_item_summary_by_world(db: Session, world_id: int) -> dict:
+    """Retrieve a summary of items in all chests of the specified world."""
+    item_summary = {}
+    chests = get_chests_by_world(db, world_id)
+    for chest in chests:
+        items = get_all_items_in_chest(db, chest.id)
+        for item in items:
+            if item.name in item_summary:
+                item_summary[item.name] += item.quantity
+            else:
+                item_summary[item.name] = item.quantity
+    return item_summary
 
 # CREATE OPERATIONS
 def create_world(db: Session, world: schemas.WorldCreate) -> models.World:

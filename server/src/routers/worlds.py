@@ -19,6 +19,37 @@ router = APIRouter(
     tags=["worlds"],
 )
 
+@router.get("/{world_id}/", response_model=schemas.World)
+async def get_world(world_id: int, db: Session = Depends(get_db)):
+    """Retrieve a world by its ID"""
+    world = crud.get_world(db, world_id)
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    return world
+
+@router.get("/", response_model=list[schemas.World])
+async def get_all_worlds(db: Session = Depends(get_db)):
+    """Retrieve all worlds"""
+    worlds = crud.get_all_worlds(db)
+    if not worlds:
+        raise HTTPException(status_code=404, detail="No worlds found")
+    return worlds
+
+@router.get("/{world_id}/chests/", response_model=list[schemas.Chest])
+async def get_chests_in_world(world_id: int, db: Session = Depends(get_db)):
+    chests = crud.get_chests_by_world(db, world_id)
+    if not chests:
+        raise HTTPException(status_code=404, detail="No chests found in the specified world")
+    return chests
+
+@router.get("/{world_id}/items/summary/", response_model=dict)
+async def get_item_summary_in_world(world_id: int, db: Session = Depends(get_db)):
+    """Retrieve a summary of items in the specified world"""
+    item_summary = crud.get_item_summary_by_world(db, world_id)
+    if not item_summary:
+        raise HTTPException(status_code=404, detail="No items found in the specified world")
+    return item_summary
+
 @router.post("/upload/", response_model=dict)
 async def world_upload(
     db_file: Annotated[UploadFile, File(description="Valheim .db save file")], #UploadFile = File(..., description="Valheim .db save file"),
