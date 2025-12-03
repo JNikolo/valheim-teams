@@ -24,6 +24,7 @@ def get_chests_by_world(db: Session, world_id: int) -> list[models.Chest]:
 def create_chest(db: Session, chest: schemas.ChestCreate) -> models.Chest:
     """Create a new chest in the database."""
     db_chest = models.Chest(
+        world_id=chest.world_id,
         prefab_name=chest.prefab_name,
         creator_id=chest.creator_id,
         position_x=chest.position_x,

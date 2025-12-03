@@ -37,6 +37,7 @@ class ChestBase(BaseModel):
     rotation_y: float
     rotation_z: float
     creator_id: int
+    world_id: int
 
 class ChestCreate(ChestBase):
     pass

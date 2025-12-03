@@ -87,8 +87,7 @@ async def world_upload(
     
     # Parse .db file (world save data)
     try:
-        db_file.file.seek(0)
-        save_data = vst.to_json(db_file.file)
+        save_data = vst.to_json(db_file.file, input_file_type=".db")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error parsing .db file: {str(e)}")
     
@@ -97,19 +96,20 @@ async def world_upload(
     
     # Parse .fwl file (world metadata)
     try:
-        fwl_file.file.seek(0)
-        world_meta = vst.to_json(fwl_file.file)
+        world_meta = vst.to_json(fwl_file.file, input_file_type=".fwl")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error parsing .fwl file: {str(e)}")
     
     if not world_meta:
         raise HTTPException(status_code=500, detail="Failed to parse .fwl file or file is empty")
     
+    save_data_meta: dict = save_data.get("meta", {})
+
     # Extract world data
     world_data = schemas.WorldCreate(
-        version=world_meta.get("worldVersion", 0),
-        net_time=world_meta.get("netTime", 0.0),
-        modified_time=world_meta.get("modified", 0),
+        version=save_data_meta.get("worldVersion", 0),
+        net_time=save_data_meta.get("netTime", 0.0),
+        modified_time=save_data_meta.get("modified", 0),
         name=world_meta.get("name", fwl_file.filename.replace(".fwl", "")),
         uid=world_meta.get("uid", 0),
         seed=world_meta.get("seed", 0),
@@ -129,11 +129,9 @@ async def world_upload(
         # Update existing world
         crud.delete_chests_by_world(db, existing_world.id)
         db_world = crud.update_world(db, existing_world.id, world_data)
-        is_new_world = False
     else:
         # Create new world
         db_world = crud.create_world(db, world_data)
-        is_new_world = True
 
     zdoList = save_data.get("zdoList", [])
     found_chests = [zdo for zdo in zdoList if zdo.get("prefabName", "") in CHEST_PREFABS]
@@ -197,8 +195,8 @@ async def world_upload(
     return {
         "status": "success",
         "world_id": db_world.id,
+        "world_uid": db_world.uid,
         "world_name": db_world.name,
-        "is_new_world": is_new_world,
         "total_chests": total_chests,
         "total_items": total_items,
         "message": f"Successfully saved {total_chests} chests and {total_items} items"
