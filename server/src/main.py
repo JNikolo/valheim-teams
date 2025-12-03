@@ -30,23 +30,16 @@ CHEST_PREFABS = {
 def read_root():
     return {"Hello": "World"}
 
-@app.get("/chests", response_model=list[schemas.Chest])
-async def get_chests(db: Session = Depends(get_db)):
-    chests = crud.get_all_chests(db)
-    if not chests:
-        raise HTTPException(status_code=404, detail="No chests found")
+@app.get("/items/{item_id}", response_model=schemas.Item)
+async def get_items(item_id: int, db: Session = Depends(get_db)):
+    item = crud.get_item(db, item_id)
     
-    return chests
-
-@app.get("/items/", response_model=list[schemas.Item])
-async def get_items(db: Session = Depends(get_db)):
-    items = crud.get_all_items(db)
-    if not items:
-        raise HTTPException(status_code=404, detail="No items found")
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
     
-    return items
+    return item
 
-@app.get("/chest/{chest_id}/items/", response_model=list[schemas.Item])
+@app.get("/chests/{chest_id}/items/", response_model=list[schemas.Item])
 async def get_items_in_chest(chest_id: int, db: Session = Depends(get_db)):
     items = crud.get_all_items_in_chest(db, chest_id)
     if not items:
