@@ -48,11 +48,14 @@ class Chest(ChestBase):
 
 # ************************ World Schema *************************** #
 class WorldBase(BaseModel):
+    uid: int
     version: int
     net_time: float
     modified_time: int
-    name: Optional[str] = None
-
+    name: str
+    seed: int
+    seed_name: str
+    
 class WorldCreate(WorldBase):
     pass
 

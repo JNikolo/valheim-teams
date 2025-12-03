@@ -1,7 +1,7 @@
 from typing import Optional, List
 from sqlalchemy import String, Integer, Float, ForeignKey, DateTime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 class Base(DeclarativeBase):
     pass
 
@@ -72,24 +72,33 @@ class World(Base):
     __tablename__ = "worlds"
 
     id: Mapped[int] = mapped_column(primary_key=True) # Primary key for the world
+
+    # Unique identifier for the world
+    uid: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        unique=True,
+        index=True
+    )
+
     version: Mapped[int] = mapped_column(Integer, nullable=False) # Version of the world
     net_time: Mapped[float] = mapped_column(Float, nullable=False) # Network time of the world
     modified_time: Mapped[int] = mapped_column(Integer, nullable=False) # Last modified time
-    
-    # Optional: Name of the world
-    name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, default=None)
+    name: Mapped[str] = mapped_column(String(100), nullable=False) # Name of the world
+    seed: Mapped[int] = mapped_column(Integer, nullable=False) # Seed of the world
+    seed_name: Mapped[str] = mapped_column(String(100), nullable=False) # Seed name of the world
 
     # Timestamps for record keeping
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable = False,
-        default = datetime.utcnow
+        default = datetime.now(timezone.utc)
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable = False,
-        default = datetime.utcnow,
-        onupdate = datetime.utcnow
+        default = datetime.now(timezone.utc),
+        onupdate = datetime.now(timezone.utc)
     )
 
     # Relationship to chests
