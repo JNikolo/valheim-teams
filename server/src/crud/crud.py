@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete
-from . import models, schemas
+from .. import models, schemas
 
 #========================== CRUD Operations ==========================#
 # These functions handle Create, Read, Update, and Delete operations
@@ -37,8 +37,7 @@ def create_chest(db: Session, chest: schemas.ChestCreate) -> models.Chest:
         rotation_z=chest.rotation_z,
     )
     db.add(db_chest)
-    db.commit()
-    db.refresh(db_chest)
+    db.flush()
     return db_chest
 
 # DELETE OPERATIONS
@@ -46,7 +45,6 @@ def delete_chests_by_world(db: Session, world_id: int) -> int:
     """Delete all chests in the specified world. Returns the number of deleted chests."""
     stmt = delete(models.Chest).where(models.Chest.world_id == world_id)
     result = db.execute(stmt)
-    db.commit()
     deleted_count = result.rowcount if result.rowcount is not None else 0
     return deleted_count
 
@@ -81,8 +79,7 @@ def create_item(db: Session, item: schemas.ItemCreate) -> models.Item:
         crafter_name=item.crafter_name,
     )
     db.add(db_item)
-    db.commit()
-    db.refresh(db_item)
+    db.flush()
     return db_item
 
 #************************** World Operations ***************************#
@@ -125,8 +122,7 @@ def create_world(db: Session, world: schemas.WorldCreate) -> models.World:
         seed_name=world.seed_name,
     )
     db.add(db_world)
-    db.commit()
-    db.refresh(db_world)
+    db.flush()
     return db_world
 
 # UPDATE OPERATIONS
@@ -144,8 +140,7 @@ def update_world(db: Session, world_id: int, world_update: schemas.WorldCreate) 
     db_world.seed = world_update.seed
     db_world.seed_name = world_update.seed_name
 
-    db.commit()
-    db.refresh(db_world)
+    db.flush()
     return db_world
 
 #======================== End of CRUD Operations ========================#
