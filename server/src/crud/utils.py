@@ -71,6 +71,7 @@ def populate_inventory(
             chest_items: list[dict] = parse_items_from_base64(chest_items_string)
             
             # Save each item to database
+            item_create_list = []
             for item_data in chest_items:
                 item_create = schemas.ItemCreate(
                     chest_id=db_chest.id,
@@ -85,8 +86,10 @@ def populate_inventory(
                     crafter_name=item_data.get("crafter_name"),
                     quality=item_data.get("quality", 0)
                 )
-                crud.create_item(db, item_create)
+                item_create_list.append(item_create)
                 total_items += 1
+            # Bulk insert items
+            crud.create_items_bulk(db, item_create_list)
     
     except Exception as e:
         db.rollback()

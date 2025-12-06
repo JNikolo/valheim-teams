@@ -63,24 +63,26 @@ def get_all_items(db: Session) -> list[models.Item]:
     return db.scalars(select(models.Item)).all()
 
 # CREATE OPERATIONS
-def create_item(db: Session, item: schemas.ItemCreate) -> models.Item:
-    """Create a new item in the database."""
-    db_item = models.Item(
-        chest_id=item.chest_id,
-        name=item.name,
-        quantity=item.quantity,
-        quality=item.quality,
-        durability=item.durability,
-        position_x=item.position_x,
-        position_y=item.position_y,
-        equipped=item.equipped,
-        variant=item.variant,
-        crafter_id=item.crafter_id,
-        crafter_name=item.crafter_name,
-    )
-    db.add(db_item)
+def create_items_bulk(db: Session, items: list[schemas.ItemCreate]) -> None:
+    """Create multiple items in the database using bulk insert."""
+    db_items = [
+        models.Item(
+            chest_id=item.chest_id,
+            name=item.name,
+            quantity=item.quantity,
+            quality=item.quality,
+            durability=item.durability,
+            position_x=item.position_x,
+            position_y=item.position_y,
+            equipped=item.equipped,
+            variant=item.variant,
+            crafter_id=item.crafter_id,
+            crafter_name=item.crafter_name,
+        )
+        for item in items
+    ]
+    db.add_all(db_items)
     db.flush()
-    return db_item
 
 #************************** World Operations ***************************#
 # READ OPERATIONS

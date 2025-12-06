@@ -1,19 +1,12 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from typing import Annotated
 from sqlalchemy.orm import Session
-from valheim_save_tools_py import ValheimSaveTools, parse_items_from_base64
+from valheim_save_tools_py import ValheimSaveTools
 from ..database import get_db
 from .. import schemas
 from ..crud import crud, utils
 
 vst = ValheimSaveTools(verbose=True)
-
-CHEST_PREFABS = {
-    "piece_chest",
-    "piece_chest_wood",
-    "piece_chest_iron",
-    "piece_chest_blackmetal",
-}
 
 router = APIRouter(
     prefix="/worlds",
