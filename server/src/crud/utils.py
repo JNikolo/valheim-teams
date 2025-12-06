@@ -20,10 +20,11 @@ def populate_inventory(
     """Populate the inventory for an existing world or create one."""
     
     if existing_world:
-        if world_data.modified_time <= existing_world.modified_time:
+        print(f"Existing world modified time: {existing_world.net_time}, Uploaded world modified time: {world_data.net_time}")
+        if world_data.net_time <= existing_world.net_time:
             raise HTTPException(
                 status_code=400,
-                detail=f"Uploaded save is not newer. Current: {existing_world.modified_time}, Uploaded: {world_data.modified_time}"
+                detail=f"Uploaded save is not newer. Current: {existing_world.net_time}, Uploaded: {world_data.net_time}"
             )
         
         # Update existing world
