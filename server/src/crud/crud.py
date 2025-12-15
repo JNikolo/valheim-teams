@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete
-from .. import models, schemas
+from ..models import Chest, Item, World
+from .. import schemas
 
 #========================== CRUD Operations ==========================#
 # These functions handle Create, Read, Update, and Delete operations
@@ -8,22 +9,22 @@ from .. import models, schemas
 
 #*************************** Chest Operations ***************************#
 # READ OPERATIONS
-def get_chest(db: Session, chest_id: int) -> models.Chest | None:
+def get_chest(db: Session, chest_id: int) -> Chest | None:
     """Retrieve a chest by its ID."""
-    return db.get(models.Chest, chest_id)
+    return db.get(Chest, chest_id)
 
-def get_all_chests(db: Session) -> list[models.Chest]:
+def get_all_chests(db: Session) -> list[Chest]:
     """Retrieve all chests."""
-    return db.scalars(select(models.Chest)).all()
+    return db.scalars(select(Chest)).all()
 
-def get_chests_by_world(db: Session, world_id: int) -> list[models.Chest]:
+def get_chests_by_world(db: Session, world_id: int) -> list[Chest]:
     """Retrieve all chests in the specified world."""
-    return db.scalars(select(models.Chest).where(models.Chest.world_id == world_id)).all()
+    return db.scalars(select(Chest).where(Chest.world_id == world_id)).all()
 
 # CREATE OPERATIONS
-def create_chest(db: Session, chest: schemas.ChestCreate) -> models.Chest:
+def create_chest(db: Session, chest: schemas.ChestCreate) -> Chest:
     """Create a new chest in the database."""
-    db_chest = models.Chest(
+    db_chest = Chest(
         world_id=chest.world_id,
         prefab_name=chest.prefab_name,
         creator_id=chest.creator_id,
@@ -40,10 +41,10 @@ def create_chest(db: Session, chest: schemas.ChestCreate) -> models.Chest:
     db.flush()
     return db_chest
 
-def create_chests_bulk(db: Session, chests: list[schemas.ChestCreate]) -> list[models.Chest]:
+def create_chests_bulk(db: Session, chests: list[schemas.ChestCreate]) -> list[Chest]:
     """Create multiple chests in the database using bulk insert."""
     db_chests = [
-        models.Chest(
+        Chest(
             world_id=chest.world_id,
             prefab_name=chest.prefab_name,
             creator_id=chest.creator_id,
@@ -65,30 +66,30 @@ def create_chests_bulk(db: Session, chests: list[schemas.ChestCreate]) -> list[m
 # DELETE OPERATIONS
 def delete_chests_by_world(db: Session, world_id: int) -> int:
     """Delete all chests in the specified world. Returns the number of deleted chests."""
-    stmt = delete(models.Chest).where(models.Chest.world_id == world_id)
+    stmt = delete(Chest).where(Chest.world_id == world_id)
     result = db.execute(stmt)
     deleted_count = result.rowcount if result.rowcount is not None else 0
     return deleted_count
 
 #*************************** Item Operations ***************************#
 # READ OPERATIONS
-def get_item(db: Session, item_id: int) -> models.Item | None:
+def get_item(db: Session, item_id: int) -> Item | None:
     """Retrieve an item by its ID."""
-    return db.get(models.Item, item_id)
+    return db.get(Item, item_id)
 
-def get_all_items_in_chest(db: Session, chest_id: int) -> list[models.Item]:
+def get_all_items_in_chest(db: Session, chest_id: int) -> list[Item]:
     """Retrieve all items in the specified chest."""
-    return db.scalars(select(models.Item).where(models.Item.chest_id == chest_id)).all()
+    return db.scalars(select(Item).where(Item.chest_id == chest_id)).all()
 
-def get_all_items(db: Session) -> list[models.Item]:
+def get_all_items(db: Session) -> list[Item]:
     """Retrieve all items."""
-    return db.scalars(select(models.Item)).all()
+    return db.scalars(select(Item)).all()
 
 # CREATE OPERATIONS
 def create_items_bulk(db: Session, items: list[schemas.ItemCreate]) -> None:
     """Create multiple items in the database using bulk insert."""
     db_items = [
-        models.Item(
+        Item(
             chest_id=item.chest_id,
             name=item.name,
             quantity=item.quantity,
@@ -108,22 +109,22 @@ def create_items_bulk(db: Session, items: list[schemas.ItemCreate]) -> None:
 
 #************************** World Operations ***************************#
 # READ OPERATIONS
-def get_world(db: Session, world_id: int) -> models.World | None:
+def get_world(db: Session, world_id: int) -> World | None:
     """Retrieve a world by its ID."""
-    return db.get(models.World, world_id)
+    return db.get(World, world_id)
 
-def get_all_worlds(db: Session) -> list[models.World]:
+def get_all_worlds(db: Session) -> list[World]:
     """Retrieve all worlds."""
-    return db.scalars(select(models.World)).all()
+    return db.scalars(select(World)).all()
 
-def get_world_by_uid(db: Session, uid: int) -> models.World | None:
+def get_world_by_uid(db: Session, uid: int) -> World | None:
     """Retrieve a world by its unique identifier (uid)."""
-    return db.scalars(select(models.World).where(models.World.uid == uid)).first()
+    return db.scalars(select(World).where(World.uid == uid)).first()
 
 # CREATE OPERATIONS
-def create_world(db: Session, world: schemas.WorldCreate) -> models.World:
+def create_world(db: Session, world: schemas.WorldCreate) -> World:
     """Create a new world in the database."""
-    db_world = models.World(
+    db_world = World(
         uid=world.uid,
         version=world.version,
         net_time=world.net_time,
@@ -137,9 +138,9 @@ def create_world(db: Session, world: schemas.WorldCreate) -> models.World:
     return db_world
 
 # UPDATE OPERATIONS
-def update_world(db: Session, world_id: int, world_update: schemas.WorldCreate) -> models.World | None:
+def update_world(db: Session, world_id: int, world_update: schemas.WorldCreate) -> World | None:
     """Update an existing world in the database."""
-    db_world = db.get(models.World, world_id)
+    db_world = db.get(World, world_id)
     if not db_world:
         return None
 

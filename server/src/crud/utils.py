@@ -1,5 +1,6 @@
 from . import crud
-from .. import schemas, models
+from .. import schemas
+from ..models import World
 from sqlalchemy.orm import Session
 from valheim_save_tools_py import parse_items_from_base64
 from ..exceptions import WorldNotNewerError
@@ -67,7 +68,7 @@ def extract_item_data(item_data: dict, chest_id: int) -> schemas.ItemCreate:
 
 def populate_inventory(
     db: Session,
-    world: models.World,
+    world: World,
     save_data: dict,
 ) -> tuple[int, int]:
     """
@@ -124,9 +125,9 @@ def populate_inventory(
 
 def create_or_update_world(
     db: Session,
-    existing: models.World | None,
+    existing: World | None,
     world_data: schemas.WorldCreate,
-) -> models.World:
+) -> World:
     if existing:
         if world_data.net_time <= existing.net_time:
             print(f"Uploaded world net_time {world_data.net_time} is not newer than existing {existing.net_time}")
@@ -138,14 +139,24 @@ def create_or_update_world(
     return crud.create_world(db, world_data)
 
 def get_item_summary_by_world(db: Session, world_id: int) -> dict[str, int]:
-    """Retrieve a summary of items in all chests of the specified world."""
-    item_summary = {}
-    chests = crud.get_chests_by_world(db, world_id)
-    for chest in chests:
-        items = crud.get_all_items_in_chest(db, chest.id)
-        for item in items:
-            if item.name in item_summary:
-                item_summary[item.name] += item.quantity
-            else:
-                item_summary[item.name] = item.quantity
-    return item_summary
+    """
+    Retrieve a summary of items in all chests of the specified world.
+    
+    Optimized to use a single query with JOIN instead of N+1 queries.
+    """
+    from sqlalchemy import select, func
+    from ..models import Item, Chest
+    
+    # Single query that joins items with chests and filters by world_id
+    # Groups by item name and sums quantities
+    stmt = (
+        select(Item.name, func.sum(Item.quantity))
+        .join(Chest, Item.chest_id == Chest.id)
+        .where(Chest.world_id == world_id)
+        .group_by(Item.name)
+    )
+    
+    results = db.execute(stmt).all()
+    
+    # Convert to dictionary
+    return {name: int(total_quantity) for name, total_quantity in results}

@@ -2,7 +2,8 @@ from fastapi import FastAPI, HTTPException, Depends
 from contextlib import asynccontextmanager
 from src.database import engine, get_db
 from sqlalchemy.orm import Session
-from . import schemas, models
+from . import schemas
+from .models import Base
 from .routers import worlds
 from .crud import crud
 
@@ -10,7 +11,7 @@ from .crud import crud
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup code: Initialize the database
-    models.Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
     yield
     # Shutdown code: (if any needed)
 
