@@ -5,6 +5,8 @@ from valheim_save_tools_py import ValheimSaveTools
 from ..database import get_db
 from .. import schemas
 from ..crud import crud, utils
+from ..exceptions import WorldNotNewerError
+from pydantic import BaseModel
 
 vst = ValheimSaveTools(verbose=True)
 
@@ -12,6 +14,12 @@ router = APIRouter(
     prefix="/worlds",
     tags=["worlds"],
 )
+
+class WorldUploadResponse(BaseModel):
+    world_id: int
+    world_name: str
+    total_chests: int
+    total_items: int
 
 # Dependency to validate uploaded Valheim files
 async def validate_valheim_files(
@@ -44,21 +52,6 @@ def parse_valheim_files(vh_file: UploadFile, file_type: str):
 
     return parsed_data
 
-def extract_world_data(save_data: dict, world_meta: dict) -> schemas.WorldCreate:
-    """Extract world data from parsed save and meta data"""
-    save_data_meta: dict = save_data.get("meta", {})
-
-    world_data = schemas.WorldCreate(
-        version=save_data_meta.get("worldVersion", 0),
-        net_time=save_data_meta.get("netTime", 0.0),
-        modified_time=save_data_meta.get("modified", 0),
-        name=world_meta.get("name", ""),
-        uid=world_meta.get("uid", 0),
-        seed=world_meta.get("seed", 0),
-        seed_name=world_meta.get("seedName", "")
-    )
-    return world_data
-
 @router.get("/{world_id}/", response_model=schemas.World)
 async def get_world(world_id: int, db: Session = Depends(get_db)):
     """Retrieve a world by its ID"""
@@ -82,39 +75,57 @@ async def get_chests_in_world(world_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No chests found in the specified world")
     return chests
 
-@router.get("/{world_id}/items/summary/", response_model=dict)
+@router.get("/{world_id}/items/summary/", response_model=dict[str, int])
 async def get_item_summary_in_world(world_id: int, db: Session = Depends(get_db)):
     """Retrieve a summary of items in the specified world"""
-    item_summary = crud.get_item_summary_by_world(db, world_id)
+    item_summary = utils.get_item_summary_by_world(db, world_id)
     if not item_summary:
         raise HTTPException(status_code=404, detail="No items found in the specified world")
     return item_summary
 
-@router.post("/upload/", response_model=dict)
-async def world_upload(
-    valheim_files: Annotated[tuple[UploadFile, UploadFile], Depends(validate_valheim_files)],
-    db: Session = Depends(get_db)
+@router.post("/upload/", response_model=WorldUploadResponse)
+def world_upload(
+    valheim_files: Annotated[
+        tuple[UploadFile, UploadFile],
+        Depends(validate_valheim_files),
+    ],
+    db: Session = Depends(get_db),
 ):
-    """Upload Valheim world save files and store chests/items in database"""
+    db_file, fwl_file = valheim_files
 
-    db_file, fwl_file = valheim_files # Unpack validated files
-    
-    # Parse files to JSON using ValheimSaveTools
     save_data = parse_valheim_files(db_file, ".db")
     world_meta = parse_valheim_files(fwl_file, ".fwl")
-    
-    # Extract world data
-    world_data = extract_world_data(save_data, world_meta)
 
-    # Check if world exists by UID
-    existing_world = crud.get_world_by_uid(db, world_data.uid)
-    
-    # Populate inventory (chests and items)
-    db_world, total_chests, total_items = utils.populate_inventory(db, existing_world, world_data, save_data)
-    
-    return {
-        "world_id": db_world.id,
-        "world_name": db_world.name,
-        "total_chests": total_chests,
-        "total_items": total_items
-    }
+    world_data = utils.extract_world_data(save_data, world_meta)
+
+    try:
+        with db.begin():
+            existing_world = crud.get_world_by_uid(db, world_data.uid)
+            
+            world = utils.create_or_update_world(
+                db,
+                existing_world,
+                world_data,
+            )
+
+            total_chests, total_items = utils.populate_inventory(
+                db,
+                world,
+                save_data,
+            )
+
+    except WorldNotNewerError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to process world upload",
+        )
+
+    return WorldUploadResponse(
+        world_id=world.id,
+        world_name=world.name,
+        total_chests=total_chests,
+        total_items=total_items,
+    )

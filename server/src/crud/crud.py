@@ -40,6 +40,28 @@ def create_chest(db: Session, chest: schemas.ChestCreate) -> models.Chest:
     db.flush()
     return db_chest
 
+def create_chests_bulk(db: Session, chests: list[schemas.ChestCreate]) -> list[models.Chest]:
+    """Create multiple chests in the database using bulk insert."""
+    db_chests = [
+        models.Chest(
+            world_id=chest.world_id,
+            prefab_name=chest.prefab_name,
+            creator_id=chest.creator_id,
+            position_x=chest.position_x,
+            position_y=chest.position_y,
+            position_z=chest.position_z,
+            sector_x=chest.sector_x,
+            sector_y=chest.sector_y,
+            rotation_x=chest.rotation_x,
+            rotation_y=chest.rotation_y,
+            rotation_z=chest.rotation_z,
+        )
+        for chest in chests
+    ]
+    db.add_all(db_chests)
+    db.flush()
+    return db_chests
+
 # DELETE OPERATIONS
 def delete_chests_by_world(db: Session, world_id: int) -> int:
     """Delete all chests in the specified world. Returns the number of deleted chests."""
@@ -97,19 +119,6 @@ def get_all_worlds(db: Session) -> list[models.World]:
 def get_world_by_uid(db: Session, uid: int) -> models.World | None:
     """Retrieve a world by its unique identifier (uid)."""
     return db.scalars(select(models.World).where(models.World.uid == uid)).first()
-
-def get_item_summary_by_world(db: Session, world_id: int) -> dict:
-    """Retrieve a summary of items in all chests of the specified world."""
-    item_summary = {}
-    chests = get_chests_by_world(db, world_id)
-    for chest in chests:
-        items = get_all_items_in_chest(db, chest.id)
-        for item in items:
-            if item.name in item_summary:
-                item_summary[item.name] += item.quantity
-            else:
-                item_summary[item.name] = item.quantity
-    return item_summary
 
 # CREATE OPERATIONS
 def create_world(db: Session, world: schemas.WorldCreate) -> models.World:
