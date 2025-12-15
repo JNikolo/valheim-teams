@@ -4,6 +4,9 @@ from sqlalchemy import select
 from pydantic import BaseModel
 
 from ..models.base import Base
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Type variables for generic CRUD operations
 ModelType = TypeVar("ModelType", bound=Base)
@@ -90,6 +93,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db_obj = self.model(**obj_data)
         db.add(db_obj)
         db.flush()
+        logger.debug(f"Created {self.model.__name__} record")
         return db_obj
 
     def create_bulk(
@@ -108,6 +112,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db_objs = [self.model(**obj.model_dump()) for obj in objs_in]
         db.add_all(db_objs)
         db.flush()
+        logger.debug(f"Bulk created {len(db_objs)} {self.model.__name__} records")
         return db_objs
 
     def update(
@@ -154,4 +159,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if obj:
             db.delete(obj)
             db.flush()
+            logger.debug(f"Deleted {self.model.__name__} record with ID: {id}")
+        else:
+            logger.debug(f"{self.model.__name__} record not found for deletion: {id}")
         return obj

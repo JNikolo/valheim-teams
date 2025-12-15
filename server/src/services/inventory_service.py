@@ -5,9 +5,10 @@ from valheim_save_tools_py import parse_items_from_base64
 from .. import crud
 from ..models import World
 from ..schemas import ChestCreate, ItemCreate
+from ..logging_config import get_logger
 
 # Set up logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Valheim chest prefab names
 CHEST_PREFABS = frozenset([

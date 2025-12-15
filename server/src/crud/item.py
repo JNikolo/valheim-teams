@@ -5,6 +5,9 @@ from sqlalchemy import select, func
 from .base import CRUDBase
 from ..models import Item, Chest
 from ..schemas import ItemCreate
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class CRUDItem(CRUDBase[Item, ItemCreate, ItemCreate]):
@@ -38,6 +41,8 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemCreate]):
         Returns:
             Dictionary mapping item names to total quantities
         """
+        logger.debug(f"Getting item summary for world {world_id}")
+        
         stmt = (
             select(Item.name, func.sum(Item.quantity))
             .join(Chest, Item.chest_id == Chest.id)
@@ -48,7 +53,9 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemCreate]):
         results = db.execute(stmt).all()
         
         # Convert to dictionary
-        return {name: int(total_quantity) for name, total_quantity in results}
+        summary = {name: int(total_quantity) for name, total_quantity in results}
+        logger.debug(f"Found {len(summary)} unique item types in world {world_id}")
+        return summary
 
 
 # Create a singleton instance

@@ -5,6 +5,9 @@ from .. import crud
 from ..models import World
 from ..schemas import WorldCreate
 from ..exceptions import WorldNotNewerError
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class WorldService:
@@ -61,8 +64,18 @@ class WorldService:
         existing = crud.world.get_by_uid(db, world_data.uid)
 
         if existing:
+            logger.debug(
+                f"World with UID {world_data.uid} exists (ID: {existing.id}). "
+                f"Comparing net_time: new={world_data.net_time}, existing={existing.net_time}"
+            )
+            
             # Business rule: Prevent uploading older saves
             if world_data.net_time <= existing.net_time:
+                logger.warning(
+                    f"Rejected world update for UID {world_data.uid}: "
+                    f"Upload net_time {world_data.net_time} is not newer than "
+                    f"existing {existing.net_time}"
+                )
                 raise WorldNotNewerError(
                     f"Uploaded save is not newer than existing world. "
                     f"Upload net_time: {world_data.net_time}, "
@@ -70,11 +83,17 @@ class WorldService:
                 )
             
             # Update existing world
+            logger.info(
+                f"Updating world {existing.name} (ID: {existing.id}) "
+                f"with newer save (net_time: {world_data.net_time})"
+            )
             world = crud.world.update_by_id(db, existing.id, world_data)
             return world, False
 
         # Create new world
+        logger.info(f"Creating new world: {world_data.name} (UID: {world_data.uid})")
         world = crud.world.create(db, obj_in=world_data)
+        logger.debug(f"World created with ID: {world.id}")
         return world, True
 
 

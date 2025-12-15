@@ -6,6 +6,9 @@ from sqlalchemy.orm import selectinload
 from .base import CRUDBase
 from ..models import Chest
 from ..schemas import ChestCreate
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class CRUDChest(CRUDBase[Chest, ChestCreate, ChestCreate]):
@@ -60,6 +63,7 @@ class CRUDChest(CRUDBase[Chest, ChestCreate, ChestCreate]):
         stmt = delete(Chest).where(Chest.world_id == world_id)
         result = db.execute(stmt)
         deleted_count = result.rowcount if result.rowcount is not None else 0
+        logger.debug(f"Deleted {deleted_count} chests from world {world_id}")
         return deleted_count
 
 

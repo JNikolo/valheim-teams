@@ -6,6 +6,9 @@ from sqlalchemy.orm import selectinload
 from .base import CRUDBase
 from ..models import World
 from ..schemas import WorldCreate
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class CRUDWorld(CRUDBase[World, WorldCreate, WorldCreate]):
