@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, Depends
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from src.database import engine, get_db
 from sqlalchemy.orm import Session
-from . import schemas, crud
+from sqlalchemy import select
 from .models import Base
 from .routers import worlds, chests, items
 from .logging_config import setup_logging, get_logger
@@ -52,3 +53,38 @@ def read_root():
         "version": "1.0.0",
         "status": "running"
     }
+
+@app.get("/health")
+def health_check(db: Session = Depends(get_db)):
+    """
+    Health check endpoint for monitoring and readiness probes.
+    
+    Checks:
+    - API is responsive
+    - Database connection is working
+    
+    Returns:
+        200: Service is healthy
+        503: Service is unhealthy (database connection failed)
+    """
+    try:
+        # Test database connection by checking if the session is valid
+        # This is safer than using raw SQL and tests the ORM connection
+        db.execute(select(1))
+        logger.debug("Health check passed - database connection OK")
+        
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "version": "1.0.0"
+        }
+    except Exception as e:
+        logger.error(f"Health check failed - database connection error: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "database": "disconnected",
+                "error": str(e)
+            }
+        )
