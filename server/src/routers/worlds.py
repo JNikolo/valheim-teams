@@ -1,9 +1,13 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
+from fastapi import APIRouter, File, UploadFile, Depends
 from typing import Annotated
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import schemas, crud, services
-from ..exceptions import WorldNotNewerError
+from ..exceptions import (
+    WorldNotNewerError,
+    WorldNotFoundError,
+    InvalidFileFormatError
+)
 from ..logging_config import get_logger
 from pydantic import BaseModel
 
@@ -30,18 +34,18 @@ async def validate_valheim_files(
     
     if db_file.content_type != "application/octet-stream":
         logger.warning(f"Invalid .db file type: {db_file.content_type}")
-        raise HTTPException(status_code=400, detail="Invalid .db file type")
+        raise InvalidFileFormatError(".db", "Invalid content type")
     
     if fwl_file.content_type != "application/octet-stream":
         logger.warning(f"Invalid .fwl file type: {fwl_file.content_type}")
-        raise HTTPException(status_code=400, detail="Invalid .fwl file type")
+        raise InvalidFileFormatError(".fwl", "Invalid content type")
     
     if not db_file.filename.endswith(".db"):
         logger.warning(f"File does not have .db extension: {db_file.filename}")
-        raise HTTPException(status_code=400, detail="Uploaded file is not a .db file")
+        raise InvalidFileFormatError(".db", "File must have .db extension")
     if not fwl_file.filename.endswith(".fwl"):
         logger.warning(f"File does not have .fwl extension: {fwl_file.filename}")
-        raise HTTPException(status_code=400, detail="Uploaded file is not a .fwl file")
+        raise InvalidFileFormatError(".fwl", "File must have .fwl extension")
     
     logger.debug("File validation passed")
     return db_file, fwl_file
@@ -54,7 +58,7 @@ async def get_world(world_id: int, db: Session = Depends(get_db)):
     
     if not world:
         logger.warning(f"World not found: {world_id}")
-        raise HTTPException(status_code=404, detail="World not found")
+        raise WorldNotFoundError(world_id)
     
     logger.debug(f"World found: {world.name} (UID: {world.uid})")
     return world
@@ -67,7 +71,7 @@ async def get_all_worlds(db: Session = Depends(get_db)):
     
     if not worlds:
         logger.info("No worlds found in database")
-        raise HTTPException(status_code=404, detail="No worlds found")
+        return []  # Return empty list instead of error
     
     logger.debug(f"Found {len(worlds)} world(s)")
     return worlds
@@ -76,11 +80,17 @@ async def get_all_worlds(db: Session = Depends(get_db)):
 async def get_chests_in_world(world_id: int, db: Session = Depends(get_db)):
     """Retrieve all chests in the specified world"""
     logger.debug(f"Fetching chests for world ID: {world_id}")
+    
+    # First verify world exists
+    world = crud.world.get(db, world_id)
+    if not world:
+        raise WorldNotFoundError(world_id)
+    
     chests = crud.chest.get_by_world(db, world_id)
     
     if not chests:
         logger.info(f"No chests found in world: {world_id}")
-        raise HTTPException(status_code=404, detail="No chests found in the specified world")
+        return []  # Return empty list instead of error
     
     logger.debug(f"Found {len(chests)} chest(s) in world {world_id}")
     return chests
@@ -89,11 +99,17 @@ async def get_chests_in_world(world_id: int, db: Session = Depends(get_db)):
 async def get_item_summary_in_world(world_id: int, db: Session = Depends(get_db)):
     """Retrieve a summary of items in the specified world"""
     logger.debug(f"Fetching item summary for world ID: {world_id}")
+    
+    # First verify world exists
+    world = crud.world.get(db, world_id)
+    if not world:
+        raise WorldNotFoundError(world_id)
+    
     item_summary = crud.item.get_summary_by_world(db, world_id)
     
     if not item_summary:
         logger.info(f"No items found in world: {world_id}")
-        raise HTTPException(status_code=404, detail="No items found in the specified world")
+        return {}  # Return empty dict instead of error
     
     total_items = sum(item_summary.values())
     logger.debug(f"Found {len(item_summary)} unique item types, {total_items} total items in world {world_id}")
@@ -154,16 +170,14 @@ def world_upload(
                 f"{total_chests} chests, {total_items} items"
             )
 
-    except WorldNotNewerError as e:
-        logger.warning(f"World upload rejected: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+    except WorldNotNewerError:
+        # Let the exception bubble up to the global handler
+        raise
 
     except Exception as e:
         logger.exception(f"Failed to process world upload: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to process world upload",
-        )
+        # Re-raise to let global handler deal with it
+        raise
 
     return WorldUploadResponse(
         world_id=world.id,

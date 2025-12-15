@@ -76,9 +76,8 @@ class WorldService:
                     f"existing {existing.net_time}"
                 )
                 raise WorldNotNewerError(
-                    f"Uploaded save is not newer than existing world. "
-                    f"Upload net_time: {world_data.net_time}, "
-                    f"Existing net_time: {existing.net_time}"
+                    upload_net_time=world_data.net_time,
+                    existing_net_time=existing.net_time
                 )
             
             # Update existing world

@@ -1,7 +1,7 @@
 from typing import BinaryIO
-from fastapi import HTTPException, UploadFile
 from valheim_save_tools_py import ValheimSaveTools
 from ..logging_config import get_logger
+from ..exceptions import ParsingError
 
 logger = get_logger(__name__)
 
@@ -34,27 +34,21 @@ class ValheimParserService:
             Dictionary containing parsed save data
             
         Raises:
-            HTTPException: If file parsing fails
+            ParsingError: If file parsing fails
         """
         try:
             logger.debug("Parsing .db file...")
             parsed_data = self.parser.to_json(file, input_file_type=".db")
             if not parsed_data:
                 logger.error("Parser returned empty data for .db file")
-                raise HTTPException(
-                    status_code=422,
-                    detail="Failed to parse .db file or file is empty"
-                )
+                raise ParsingError(".db", "File is empty or could not be parsed")
             logger.debug(f".db file parsed successfully, found {len(parsed_data.get('zdoList', []))} ZDOs")
             return parsed_data
-        except HTTPException:
+        except ParsingError:
             raise
         except Exception as e:
             logger.error(f"Failed to parse .db file: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=422,
-                detail=f"Invalid .db file format: {str(e)}"
-            )
+            raise ParsingError(".db", str(e))
 
     def parse_fwl_file(self, file: BinaryIO) -> dict:
         """
@@ -67,27 +61,21 @@ class ValheimParserService:
             Dictionary containing parsed world metadata
             
         Raises:
-            HTTPException: If file parsing fails
+            ParsingError: If file parsing fails
         """
         try:
             logger.debug("Parsing .fwl file...")
             parsed_data = self.parser.to_json(file, input_file_type=".fwl")
             if not parsed_data:
                 logger.error("Parser returned empty data for .fwl file")
-                raise HTTPException(
-                    status_code=422,
-                    detail="Failed to parse .fwl file or file is empty"
-                )
+                raise ParsingError(".fwl", "File is empty or could not be parsed")
             logger.debug(f".fwl file parsed successfully, world: {parsed_data.get('name', 'unknown')}")
             return parsed_data
-        except HTTPException:
+        except ParsingError:
             raise
         except Exception as e:
             logger.error(f"Failed to parse .fwl file: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=422,
-                detail=f"Invalid .fwl file format: {str(e)}"
-            )
+            raise ParsingError(".fwl", str(e))
 
 
 # Create a singleton instance
