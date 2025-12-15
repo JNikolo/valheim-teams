@@ -1,40 +1,90 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, Depends
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from src.database import engine, get_db
 from sqlalchemy.orm import Session
-from . import schemas, models
-from .routers import worlds
-from .crud import crud
+from sqlalchemy import select
+from .models import Base
+from .routers import worlds, chests, items
+from .logging_config import setup_logging, get_logger
+from .middleware import RequestLoggingMiddleware, RequestIdContextMiddleware
+
+# Initialize logging before anything else
+setup_logging()
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup code: Initialize the database
-    models.Base.metadata.create_all(bind=engine)
+    logger.info("Starting up Valheim Teams API...")
+    logger.info("Creating database tables...")
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables created successfully")
+    logger.info("Application startup complete")
+    
     yield
-    # Shutdown code: (if any needed)
+    
+    # Shutdown code
+    logger.info("Shutting down Valheim Teams API...")
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="Valheim Teams API",
+    version="1.0.0",
+    description="API for managing Valheim world inventories and team resources",
+    lifespan=lifespan
+)
 
+# Add middleware (order matters - last added is executed first)
+app.add_middleware(RequestIdContextMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+
+# Include routers
 app.include_router(worlds.router)
+app.include_router(chests.router)
+app.include_router(items.router)
 
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    """API root endpoint - health check"""
+    logger.debug("Root endpoint accessed")
+    return {
+        "message": "Valheim Teams API",
+        "version": "1.0.0",
+        "status": "running"
+    }
 
-@app.get("/items/{item_id}", response_model=schemas.Item)
-async def get_items(item_id: int, db: Session = Depends(get_db)):
-    item = crud.get_item(db, item_id)
+@app.get("/health")
+def health_check(db: Session = Depends(get_db)):
+    """
+    Health check endpoint for monitoring and readiness probes.
     
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+    Checks:
+    - API is responsive
+    - Database connection is working
     
-    return item
-
-@app.get("/chests/{chest_id}/items/", response_model=list[schemas.Item])
-async def get_items_in_chest(chest_id: int, db: Session = Depends(get_db)):
-    items = crud.get_all_items_in_chest(db, chest_id)
-    if not items:
-        raise HTTPException(status_code=404, detail="No items found in the specified chest")
-    
-    return items
+    Returns:
+        200: Service is healthy
+        503: Service is unhealthy (database connection failed)
+    """
+    try:
+        # Test database connection by checking if the session is valid
+        # This is safer than using raw SQL and tests the ORM connection
+        db.execute(select(1))
+        logger.debug("Health check passed - database connection OK")
+        
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "version": "1.0.0"
+        }
+    except Exception as e:
+        logger.error(f"Health check failed - database connection error: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "database": "disconnected",
+                "error": str(e)
+            }
+        )
