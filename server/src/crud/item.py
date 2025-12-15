@@ -27,6 +27,43 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemCreate]):
         stmt = select(Item).where(Item.chest_id == chest_id)
         return list(db.scalars(stmt).all())
 
+    def count_by_chest(self, db: Session, chest_id: int) -> int:
+        """
+        Count total number of items in a chest.
+        
+        Args:
+            db: Database session
+            chest_id: Chest primary key
+            
+        Returns:
+            Total count of items in the chest
+        """
+        stmt = select(func.count()).select_from(Item).where(Item.chest_id == chest_id)
+        return db.scalar(stmt) or 0
+
+    def get_by_chest_paginated(
+        self, db: Session, chest_id: int, skip: int = 0, limit: int = 100
+    ) -> List[Item]:
+        """
+        Retrieve items in a chest with pagination.
+        
+        Args:
+            db: Database session
+            chest_id: Chest primary key
+            skip: Number of records to skip
+            limit: Maximum number of records to return
+            
+        Returns:
+            List of Item instances
+        """
+        stmt = (
+            select(Item)
+            .where(Item.chest_id == chest_id)
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(db.scalars(stmt).all())
+
     def get_summary_by_world(self, db: Session, world_id: int) -> dict[str, int]:
         """
         Retrieve a summary of items in all chests of the specified world.

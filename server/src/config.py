@@ -45,6 +45,40 @@ class Settings(BaseSettings):
         description="Optional log file path"
     )
     
+    # CORS Configuration
+    cors_origins: list[str] = Field(
+        default=["http://localhost:3000", "http://localhost:5173"],
+        description="Allowed CORS origins"
+    )
+    cors_allow_credentials: bool = Field(
+        default=True,
+        description="Allow credentials in CORS requests"
+    )
+    cors_allow_methods: list[str] = Field(
+        default=["*"],
+        description="Allowed HTTP methods for CORS"
+    )
+    cors_allow_headers: list[str] = Field(
+        default=["*"],
+        description="Allowed headers for CORS"
+    )
+    
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v) -> list[str]:
+        """Parse CORS origins from comma-separated string or list"""
+        if isinstance(v, str):
+            # Split by comma and strip whitespace
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
+    
+    @field_validator("cors_allow_methods", "cors_allow_headers", mode="before")
+    @classmethod
+    def parse_cors_list(cls, v) -> list[str]:
+        """Parse CORS lists from comma-separated string or list"""
+        if isinstance(v, str):
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
     
     @field_validator("log_level", mode="before")
     @classmethod

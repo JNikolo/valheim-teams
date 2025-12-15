@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, Depends
+from fastapi import APIRouter, File, UploadFile, Depends, Query
 from typing import Annotated
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -63,37 +63,67 @@ async def get_world(world_id: int, db: Session = Depends(get_db)):
     logger.debug(f"World found: {world.name} (UID: {world.uid})")
     return world
 
-@router.get("/", response_model=list[schemas.World])
-async def get_all_worlds(db: Session = Depends(get_db)):
-    """Retrieve all worlds"""
-    logger.debug("Fetching all worlds")
-    worlds = crud.world.get_all(db)
+@router.get("/", response_model=schemas.PaginatedResponse[schemas.World])
+async def get_all_worlds(
+    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
+    limit: int = Query(default=100, ge=1, le=1000, description="Maximum records to return"),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve all worlds with pagination.
     
-    if not worlds:
-        logger.info("No worlds found in database")
-        return []  # Return empty list instead of error
+    Returns paginated list of worlds with metadata.
+    """
+    logger.debug(f"Fetching worlds with skip={skip}, limit={limit}")
     
-    logger.debug(f"Found {len(worlds)} world(s)")
-    return worlds
+    # Get total count
+    total = crud.world.count(db)
+    
+    # Get paginated results
+    worlds = crud.world.get_multi(db, skip=skip, limit=limit)
+    
+    logger.debug(f"Found {len(worlds)} world(s) out of {total} total")
+    
+    return schemas.PaginatedResponse.create(
+        items=worlds,
+        total=total,
+        skip=skip,
+        limit=limit
+    )
 
-@router.get("/{world_id}/chests/", response_model=list[schemas.Chest])
-async def get_chests_in_world(world_id: int, db: Session = Depends(get_db)):
-    """Retrieve all chests in the specified world"""
-    logger.debug(f"Fetching chests for world ID: {world_id}")
+@router.get("/{world_id}/chests/", response_model=schemas.PaginatedResponse[schemas.Chest])
+async def get_chests_in_world(
+    world_id: int,
+    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
+    limit: int = Query(default=100, ge=1, le=1000, description="Maximum records to return"),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve all chests in the specified world with pagination.
+    
+    Returns paginated list of chests with metadata.
+    """
+    logger.debug(f"Fetching chests for world ID: {world_id} with skip={skip}, limit={limit}")
     
     # First verify world exists
     world = crud.world.get(db, world_id)
     if not world:
         raise WorldNotFoundError(world_id)
     
-    chests = crud.chest.get_by_world(db, world_id)
+    # Get total count of chests in this world
+    total = crud.chest.count_by_world(db, world_id)
     
-    if not chests:
-        logger.info(f"No chests found in world: {world_id}")
-        return []  # Return empty list instead of error
+    # Get paginated results
+    chests = crud.chest.get_by_world_paginated(db, world_id, skip=skip, limit=limit)
     
-    logger.debug(f"Found {len(chests)} chest(s) in world {world_id}")
-    return chests
+    logger.debug(f"Found {len(chests)} chest(s) out of {total} total in world {world_id}")
+    
+    return schemas.PaginatedResponse.create(
+        items=chests,
+        total=total,
+        skip=skip,
+        limit=limit
+    )
 
 @router.get("/{world_id}/items/summary/", response_model=dict[str, int])
 async def get_item_summary_in_world(world_id: int, db: Session = Depends(get_db)):

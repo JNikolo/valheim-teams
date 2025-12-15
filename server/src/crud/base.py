@@ -1,6 +1,6 @@
 from typing import Generic, TypeVar, Type, Optional, List, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func
 from pydantic import BaseModel
 
 from ..models.base import Base
@@ -77,6 +77,19 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             List of all model instances
         """
         return list(db.scalars(select(self.model)).all())
+
+    def count(self, db: Session) -> int:
+        """
+        Count total number of records.
+        
+        Args:
+            db: Database session
+            
+        Returns:
+            Total count of records
+        """
+        stmt = select(func.count()).select_from(self.model)
+        return db.scalar(stmt) or 0
 
     def create(self, db: Session, *, obj_in: CreateSchemaType) -> ModelType:
         """

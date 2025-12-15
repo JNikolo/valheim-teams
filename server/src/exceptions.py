@@ -69,14 +69,6 @@ class InvalidFileFormatError(ValheimAPIException):
         self.file_type = file_type
 
 
-class FileTooLargeError(ValheimAPIException):
-    """Raised when an uploaded file exceeds size limit."""
-    def __init__(self, max_size_mb: int):
-        message = f"File size exceeds maximum allowed size of {max_size_mb}MB"
-        super().__init__(message, status_code=413)
-        self.max_size_mb = max_size_mb
-
-
 class DatabaseError(ValheimAPIException):
     """Raised when a database operation fails."""
     def __init__(self, operation: str, details: str | None = None):

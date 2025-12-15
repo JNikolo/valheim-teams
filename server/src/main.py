@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from src.database import engine, get_db
 from sqlalchemy.orm import Session
@@ -11,6 +12,7 @@ from .routers import worlds, chests, items
 from .logging_config import setup_logging, get_logger
 from .middleware import RequestLoggingMiddleware, RequestIdContextMiddleware
 from .exceptions import ValheimAPIException, ResourceNotFoundError
+from .config import settings
 
 # Initialize logging before anything else
 setup_logging()
@@ -104,6 +106,17 @@ async def general_exception_handler(request: Request, exc: Exception):
         }
     )
 
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=settings.cors_allow_credentials,
+    allow_methods=settings.cors_allow_methods,
+    allow_headers=settings.cors_allow_headers,
+)
+
+logger.info(f"CORS enabled for origins: {settings.cors_origins}")
 
 # Add middleware (order matters - last added is executed first)
 app.add_middleware(RequestIdContextMiddleware)
