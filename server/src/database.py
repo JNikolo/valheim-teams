@@ -1,4 +1,4 @@
-from .config import Config
+from .config import settings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session as OrmSession
@@ -9,20 +9,20 @@ from .logging_config import get_logger
 logger = get_logger(__name__)
 
 url = URL.create(
-    drivername=Config.DB_DRIVER,
-    username=Config.DB_USER,
-    password=Config.DB_PASSWORD,
-    host=Config.DB_HOST,
-    port=Config.DB_PORT,
-    database=Config.DB_NAME,
+    drivername=settings.db_driver,
+    username=settings.db_user,
+    password=settings.db_password,
+    host=settings.db_host,
+    port=settings.db_port,
+    database=settings.db_name,
 )
 
-logger.debug(f"Database URL created: {Config.DB_DRIVER}://{Config.DB_USER}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_NAME}")
+logger.debug(f"Database URL created: {settings.db_driver}://{settings.db_user}@{settings.db_host}:{settings.db_port}/{settings.db_name}")
 
-engine = create_engine(url, echo=Config.DEBUG)  # echo=True for debugging
+engine = create_engine(url, echo=settings.debug)  # echo=True for debugging
 Session = sessionmaker(bind=engine)
 
-logger.info(f"Database engine created for: {Config.DB_NAME}")
+logger.info(f"Database engine created for: {settings.db_name}")
 
 def get_db() -> Generator[OrmSession, None, None]:
     """

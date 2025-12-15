@@ -10,7 +10,7 @@ import sys
 from typing import Optional
 from datetime import datetime
 
-from .config import Config
+from .config import settings
 
 
 class ColoredFormatter(logging.Formatter):
@@ -71,9 +71,9 @@ def setup_logging(
         log_format: Format style ('simple' or 'detailed')
         log_file: Optional path to log file
     """
-    level = level or Config.LOG_LEVEL
-    log_format = log_format or Config.LOG_FORMAT
-    log_file = log_file or Config.LOG_FILE
+    level = level or settings.log_level
+    log_format = log_format or settings.log_format
+    log_file = log_file or settings.log_file
 
     # Determine log level
     numeric_level = getattr(logging, level.upper(), logging.INFO)
@@ -103,7 +103,7 @@ def setup_logging(
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(numeric_level)
     
-    if Config.DEBUG:
+    if settings.debug:
         # Use colored formatter in development
         console_formatter = ColoredFormatter(
             console_format,
@@ -142,14 +142,14 @@ def setup_logging(
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     
     # SQLAlchemy logging - show queries only in DEBUG mode
-    if Config.DEBUG:
+    if settings.debug:
         logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
     else:
         logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     
     # Log startup info
     logging.info(f"Logging configured - Level: {level}, Format: {log_format}")
-    logging.debug(f"Debug mode: {Config.DEBUG}")
+    logging.debug(f"Debug mode: {settings.debug}")
 
 
 def get_logger(name: str) -> logging.Logger:

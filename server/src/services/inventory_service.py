@@ -1,4 +1,3 @@
-import logging
 from sqlalchemy.orm import Session
 from valheim_save_tools_py import parse_items_from_base64
 
